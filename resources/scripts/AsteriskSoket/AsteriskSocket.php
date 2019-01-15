@@ -117,15 +117,17 @@ function checkPredictiveCallStatus($event)
 
             $data = explode('|', $event->getKeys()['destaccountcode']);
 
-            try {
+            if (file_exists("/var/spool/asterisk/outgoing_done/" . $data[1] . ".call")) {
                 $fp = fopen("/var/spool/asterisk/outgoing_done/" . $data[1] . ".call", "r") or die("Unable to open file!");
-            } catch (Exception $e) {
-                sleep(1);
-                try {
+            } else {
+                sleep(2);
+
+                if (file_exists("/var/spool/asterisk/outgoing_done/" . $data[1] . ".call")) {
                     $fp = fopen("/var/spool/asterisk/outgoing_done/" . $data[1] . ".call", "r") or die("Unable to open file!");
-                } catch (Exception $e) {
+                } else {
                     return;
                 }
+
             }
 
             $old_file = fread($fp, filesize("/var/spool/asterisk/outgoing_done/" . $data[1] . ".call"));
@@ -134,16 +136,16 @@ function checkPredictiveCallStatus($event)
 
             if (strlen($old_file_array[$data[2] + 14]) > 10) {
                 $newNumber = explode('=', $old_file_array[$data[2] + 14]);
-                if (!is_numeric($newNumber[1])) {
+                if (!isset($newNumber[1]) || !is_numeric($newNumber[1])) {
                     $data[2]++;
                     $newNumber = explode('=', $old_file_array[$data[2] + 14]);
-                    if (!is_numeric($newNumber[1])) {
+                    if (!isset($newNumber[1]) || !is_numeric($newNumber[1])) {
                         $data[2]++;
                         $newNumber = explode('=', $old_file_array[$data[2] + 14]);
-                        if (!is_numeric($newNumber[1])) {
+                        if (!isset($newNumber[1]) || !is_numeric($newNumber[1])) {
                             $data[2]++;
                             $newNumber = explode('=', $old_file_array[$data[2] + 14]);
-                            if (!is_numeric($newNumber[1])) {
+                            if (!isset($newNumber[1]) || !is_numeric($newNumber[1])) {
                                 $data[2]++;
                                 $newNumber = explode('=', $old_file_array[$data[2] + 14]);
                             }

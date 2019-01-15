@@ -5,78 +5,123 @@ class TurnosCkeckCommand extends ConsoleCommand
     public function run($args)
     {
 
-        include_once "/var/www/html/callcenter/protected/commands/AGI.Class.php";
-        $asmanager = new AGI_AsteriskManager;
-        $asmanager->connect('localhost', 'magnus', 'magnussolution');
+        sleep(1);
 
-        sleep(40);
+        $modelLoginsCampaign = LoginsCampaign::model()->findAll(
+            array(
+                'condition' => 'stoptime = :key',
+                'order'     => 'id DESC',
+                'params'    => array(':key' => '0000-00-00 00:00:00'),
+            )
 
-        $sql              = "SELECT * FROM pkg_logins_campaign WHERE stoptime = '0000-00-00 00:00:00'";
-        $userOnlineResult = Yii::app()->db->createCommand($sql)->queryAll();
+        );
 
-        foreach ($userOnlineResult as $key => $userOnline) {
+        foreach ($modelLoginsCampaign as $key => $userOnline) {
 
             $currentyTime = date('H:i:s');
             echo "CurrentTime $currentyTime \n";
 
-            $sql            = "SELECT * FROM pkg_campaign WHERE id =" . $userOnline['id_campaign'];
-            $campaignResult = Yii::app()->db->createCommand($sql)->queryAll();
+            $startTimeUser = date('H:i:s', strtotime($userOnline->starttime));
 
-            $startTimeUser = date('H:i:s', strtotime($userOnline['starttime']));
+            $campaignName = preg_replace("/ /", "\ ", $userOnline->idCampaign->name);
+            echo $userOnline->login_type . "\n";
 
-            $campaignName = preg_replace("/ /", "\ ", $campaignResult[0]['name']);
+            if ($userOnline->login_type == 'PAUSE') {
 
-            //se a hora que o cliente inicio o login é menor que a hora final do turno, desloguear o cliente
-            if ($startTimeUser < $campaignResult[0]['daily_morning_stop_time']) {
-                echo "$startTimeUser -> the operator is in the morning\n";
+                if ($userOnline->turno == 'M' && $currentyTime > $userOnline->idCampaign->daily_morning_stop_time
+                    || $userOnline->turno == 'T' && $currentyTime > $userOnline->idCampaign->daily_afternoon_stop_time) {
+                    echo "Operator in pause and out campaign time. UNPOUSE FIST\n";
+                    if ($userOnline->turno == 'T') {
+                        $userOnline->stoptime = $userOnline->idCampaign->daily_afternoon_stop_time;
+                    } else {
+                        $userOnline->stoptime = $userOnline->idCampaign->daily_morning_stop_time;
+                    }
+                    $userOnline->stoptime   = date('Y-m-d', strtotime($userOnline->starttime)) . ' ' . $userOnline->stoptime;
+                    $userOnline->total_time = strtotime($userOnline->stoptime) - strtotime($startTimeUser);
 
-                if ($currentyTime > $campaignResult[0]['daily_morning_stop_time']) {
-                    echo "Logout the operator\n";
-
-                    $asmanager->Command("queue remove member SIP/" . $userOnline['id_user'] . " from " . $campaignName);
-
-                    $totalTime = " TIME_TO_SEC( TIMEDIFF(  '" . date('Y-m-d H:i:s') . "',  starttime ) ) ";
-
-                    $sql = "UPDATE pkg_logins_campaign SET stoptime = '" . date('Y-m-d H:i:s') . "',
-						total_time = $totalTime WHERE id = " . $userOnline['id'];
-                    Yii::log($sql, 'info');
-                    Yii::app()->db->createCommand($sql)->execute();
-
-                    $sql = "DELETE FROM pkg_call_online WHERE id_user = " . $resultUser[0]['id'];
-                    Yii::app()->db->createCommand($sql)->execute();
-
-                    $sql = "UPDATE pkg_user SET id_campaign = '-1' WHERE id = " . $userOnline['id_user'];
-                    Yii::app()->db->createCommand($sql)->execute();
-
-                } else {
-                    echo "The operator is work in time\n";
-                }
-
-            } elseif ($startTimeUser < $campaignResult[0]['daily_afternoon_stop_time']) {
-                echo "$startTimeUser -> the operator is in the afternoon\n";
-
-                if ($currentyTime > $campaignResult[0]['daily_afternoon_stop_time']) {
-                    if ($args[0] != 'localhost') {
-                        $asmanager->Command("queue remove member SIP/" . $userOnline['id_user'] . " from " . $campaignName);
+                    try {
+                        $userOnline->save();
+                    } catch (Exception $e) {
+                        Yii::log(print_r($userOnline->errors, true), 'info');
                     }
 
-                    $totalTime = " TIME_TO_SEC( TIMEDIFF(  '" . date('Y-m-d H:i:s') . "',  starttime ) ) ";
+                    AsteriskAccess::instance()->queueUnPauseMember($userOnline->idUser->username, $userOnline->idCampaign->name);
 
-                    $sql = "UPDATE pkg_logins_campaign SET stoptime = '" . date('Y-m-d H:i:s') . "',
-						total_time = $totalTime WHERE id = " . $userOnline[0]['id'];
-                    Yii::log($sql, 'info');
-                    Yii::app()->db->createCommand($sql)->execute();
-
-                    $sql = "UPDATE pkg_user SET id_campaign = '-1' WHERE id = " . $userOnline['id_user'];
-                    Yii::app()->db->createCommand($sql)->execute();
-
-                    $sql = "DELETE FROM pkg_call_online WHERE id_user = " . $resultUser[0]['id'];
-                    Yii::app()->db->createCommand($sql)->execute();
-
-                } else {
-                    echo "The operator is work in time\n";
                 }
             }
+
+            if ($userOnline->login_type == 'LOGIN') {
+                if ($userOnline->starttime < date('Y-m-d')) {
+                    echo "operator is loged from yestaday\n";
+                    $this->logoutOperator($userOnline, $startTimeUser);
+
+                }
+
+                //se a hora que o cliente inicio o login é menor que a hora final do turno, desloguear o cliente
+                if ($userOnline->turno == 'M' && $currentyTime > $userOnline->idCampaign->daily_morning_stop_time
+                    || $userOnline->turno == 'T' && $currentyTime > $userOnline->idCampaign->daily_afternoon_stop_time) {
+                    echo "operator is loged but out campaign time\n";
+                    $this->logoutOperator($userOnline, $startTimeUser);
+                }
+
+            }
         }
+    }
+
+    public function logoutOperator($userOnline, $startTimeUser)
+    {
+
+        $modelOperatorStatus = OperatorStatus::model()->find('id_user = :key', array(':key' => $userOnline->idUser->id));
+        if ($modelOperatorStatus->categorizing == 1 || $modelOperatorStatus->in_call == 1) {
+            echo "Loged out campaign time but categorizing or in call. Wait.....";
+            return;
+        }
+
+        AsteriskAccess::instance()->queueRemoveMember($userOnline->idUser->username, $userOnline->idCampaign->name);
+
+        $modelPhonenumber = PhoneNumber::model()->findByPk($userOnline->idUser->id_current_phonenumber);
+
+        if (count($modelPhonenumber)) {
+            $modelPhonenumber->id_user = null;
+            $modelPhonenumber->save();
+        }
+
+        $userOnline->idUser->id_current_phonenumber = null;
+        $userOnline->idUser->id_campaign            = null;
+        $userOnline->idUser->force_logout           = 1;
+        $userOnline->idUser->save();
+
+        $modelLoginsCampaign = LoginsCampaign::model()->find(
+            "id_user = :id_user AND stoptime = :stoptime AND  id_campaign = :id_campaign AND login_type = :login_type",
+            array(
+                ":id_campaign" => $userOnline->id_campaign,
+                ":id_user"     => $userOnline->id_user,
+                ":stoptime"    => '0000-00-00 00:00:00',
+                ":login_type"  => 'LOGIN',
+            ));
+        if (count($modelLoginsCampaign)) {
+
+            if ($userOnline->turno == 'T') {
+                $modelLoginsCampaign->stoptime = $userOnline->idCampaign->daily_afternoon_stop_time;
+            } else {
+                $modelLoginsCampaign->stoptime = $userOnline->idCampaign->daily_morning_stop_time;
+            }
+            $modelLoginsCampaign->stoptime = date('Y-m-d', strtotime($userOnline->starttime)) . ' ' . $modelLoginsCampaign->stoptime;
+            echo 'stoptime = ' . $modelLoginsCampaign->stoptime;
+
+            $modelLoginsCampaign->total_time = strtotime($modelLoginsCampaign->stoptime) - strtotime($startTimeUser);
+            try {
+                $modelLoginsCampaign->save();
+            } catch (Exception $e) {
+                Yii::log(print_r($modelLoginsCampaign->errors, true), 'info');
+            }
+        }
+
+        LoginsCampaign::model()->deleteAll('id_user = :key AND stoptime = :key1', array(
+            ':key'  => $userOnline->id_user,
+            ':key1' => '0000-00-00 00:00:00',
+        ));
+
+        OperatorStatus::model()->deleteAll("id_user = " . $userOnline->id_user);
     }
 }
