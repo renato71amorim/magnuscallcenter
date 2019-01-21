@@ -367,7 +367,7 @@ class PredictiveCommand extends ConsoleCommand
                     //$call .= "RetryTime: 1\n";
                     //$call .= "WaitTime: 45\n";
                     $call .= "Account: predictive|" . $aleatorio . "|1|" . $phone->id . "\n";
-                    $call .= "Context: magnuscallcenter\n";
+                    $call .= "Context: magnuscallcenterpredictive\n";
                     $call .= "Extension: " . $extension . "\n";
                     $call .= "Priority: 1\n";
                     $call .= "Set:CALLERID=" . $phone->number . "\n";
