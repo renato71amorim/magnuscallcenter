@@ -159,6 +159,17 @@ class MagnusCommand extends CConsoleCommand
 
             if ($MAGNUS->id_phonenumber == 0) {
                 $agi->verbose('Operator ' . $MAGNUS->accountcode . ' make a direct call to campaign ID ' . $MAGNUS->id_campaign, 8);
+
+                $sql = "UPDATE pkg_operator_status SET categorizing = 0 WHERE id_user =" . $MAGNUS->id_user;
+                $agi->verbose($sql, 25);
+                Yii::app()->db->createCommand($sql)->execute();
+
+                $sql = "SELECT name FROM pkg_campaign WHERE id = (SELECT id_campaign FROM pkg_user WHERE id = " . $MAGNUS->id_user . ")";
+                $agi->verbose($sql, 25);
+                $resultCampaign = Yii::app()->db->createCommand($sql)->queryAll();
+
+                AsteriskAccess::instance()->queueUnPauseMember($MAGNUS->username, $resultCampaign[0]['name']);
+
             }
 
             $status_channel = 4;
