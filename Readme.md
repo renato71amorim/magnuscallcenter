@@ -51,4 +51,4 @@ Free Support
 We provide several avenues for you to get your system up and running on your own and learn the basics of the system.
 
 1. [Youtube Channel](https://www.youtube.com/channel/UCish_6Lxfkh29n4CLVEd90Q)
-2. [whatsAppGroup(Português)](https://chat.whatsapp.com/BTdjkyHsFTkLql1PBkehdP)
+2. [Grupo Facebook(Português)](https://www.facebook.com/groups/340516350133415/)
