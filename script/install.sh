@@ -37,7 +37,12 @@ yum -y install php.`uname -m` php-cli.`uname -m` php-devel.`uname -m` php-gd.`un
 yum -y install jansson.`uname -m` jansson-devel.`uname -m` unzip.`uname -m`
 yum -y install mysql mariadb-server  mariadb-devel mariadb php-mysql mysql-connector-odbc
 yum -y install xmlstarlet libsrtp libsrtp-devel dmidecode gtk2-devel binutils-devel svn libtermcap-devel libtiff-devel audiofile-devel cronie cronie-anacron
-
+#aplicação adcional
+#yum install cockpit cockpit-dashboard -y
+#systemctl enable --now cockpit.socket
+#cd /usr/share/cockpit
+#rm -Rf selinux
+#rm -Rf kdump
 
 systemctl enable httpd.service && systemctl enable mariadb
 
@@ -451,6 +456,10 @@ iptables -A INPUT -p tcp --dport 22 -j ACCEPT
 iptables -P INPUT DROP
 iptables -P FORWARD DROP
 iptables -P OUTPUT ACCEPT
+#portas adcionais // renatoamorim
+#iptables -A INPUT -p tcp -m tcp --dport 9090 -j ACCEPT
+#iptables -A INPUT -p tcp -m tcp --dport 3306 -j ACCEPT
+
 iptables -A INPUT -p udp -m udp --dport 5060 -j ACCEPT
 iptables -A INPUT -p udp -m udp --dport 10000:20000 -j ACCEPT
 iptables -A INPUT -p tcp -m tcp --dport 80 -j ACCEPT
